@@ -1,0 +1,10 @@
+README.md
+setup.py
+polars_mssql/__init__.py
+polars_mssql/config.py
+polars_mssql/connection.py
+polars_mssql.egg-info/PKG-INFO
+polars_mssql.egg-info/SOURCES.txt
+polars_mssql.egg-info/dependency_links.txt
+polars_mssql.egg-info/requires.txt
+polars_mssql.egg-info/top_level.txt
