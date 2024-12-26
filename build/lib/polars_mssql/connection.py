@@ -80,22 +80,48 @@ class Connection:
         config = get_default_mssql_config()
 
         # Resolve parameters with config defaults if not provided
-        self.database = database or config["database"]
-        self.server = server or config["server"]
-        driver = driver or config["driver"]
+        if database is None:
+            self.database = config['database']
+            if self.database is None:
+                raise ValueError("Database name cannot be None.")
+            else:
+                print(f"Default database used: {self.database}")
+        else:
+            self.database = database
+
+        if server is None:
+            self.server = config['server']
+            if self.server is None:
+                raise ValueError("Server cannot be None.")
+            else:
+                print(f"Default server used: {self.server}")
+        else:
+            self.server = server
+
+        if driver is None:
+            self.driver = config['driver']
+            if self.driver is None:
+                raise ValueError("Driver cannot be None.")
+            else:
+                print(f"Default driver used: {self.driver}")
+        else:
+            self.driver = driver
+        
+
+
 
         # If both username and password are provided, use SQL Authentication
         if username and password:
             encoded_password = quote_plus(password)
             conn_str = (
         f"mssql+pyodbc://{username}:{encoded_password}@{self.server}/{self.database}"
-        f"?driver={driver.replace(' ', '+')}") 
+        f"?driver={self.driver.replace(' ', '+')}") 
         else:
              # Windows Integrated Authentication
             conn_str = (
             f"mssql+pyodbc://@{self.server}/{self.database}"
             f"?trusted_connection=yes"
-            f"&driver={driver.replace(' ', '+')}"  # Ensure proper encoding
+            f"&driver={self.driver.replace(' ', '+')}"  # Ensure proper encoding
         )
 
         self.connection_string = conn_str

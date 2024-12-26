@@ -37,8 +37,7 @@ from polars_mssql import Connection
 conn = Connection(
     database="my_database",
     server="my_server",
-    username="my_user",  # Optional for Windows Authentication
-    password="my_password",  # Optional for Windows Authentication
+    driver = 'ODBC Driver 17 for SQL Server'
 )
 ```
 

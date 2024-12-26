@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: polars-mssql
-Version: 0.1.0
+Version: 0.2
 Summary: Effortlessly connect to SQL Server to import data into Polars DataFrames and export data back to SQL Server.
 Home-page: https://github.com/drosenman/py_mssql
 Author: Dave Rosenman
@@ -58,8 +58,7 @@ from polars_mssql import Connection
 conn = Connection(
     database="my_database",
     server="my_server",
-    username="my_user",  # Optional for Windows Authentication
-    password="my_password",  # Optional for Windows Authentication
+    driver = 'ODBC Driver 17 for SQL Server'
 )
 ```
 
