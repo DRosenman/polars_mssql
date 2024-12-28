@@ -126,6 +126,8 @@ class Connection:
 
         self.connection_string = conn_str
         self._engine = create_engine(conn_str, echo=False)
+        if username and password:
+            self.connection_string = conn_str.replace(f":{encoded_password}", ":<hidden>")
 
     def read_query(self,
         query: str,
@@ -262,3 +264,12 @@ class Connection:
         Exit the runtime context and close the connection.
         """
         self.close()
+
+    def __repr__(self):
+        return f"Connection(database={self.database}, server={self.server}, driver={self.driver})"
+
+    def __str__(self):
+        """
+        Return a user-friendly string representation of the connection, hiding sensitive data.
+        """
+        return f"Connection:\n\tDatabase: {self.database}\n\tServer: {self.server}\n\tDriver: {self.driver}"
