@@ -1,6 +1,8 @@
 import polars as pl
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
+from sqlalchemy.exc import SQLAlchemyError
 from .config import get_default_mssql_config
+from .connection_string import connection_string
 from typing import Any, Dict, Optional, Union
 from urllib.parse import quote_plus
 
@@ -37,20 +39,13 @@ class Connection:
         The server name in use.
     connection_string : str
         The SQLAlchemy connection string built from the provided parameters.
-    _engine : sqlalchemy.engine.base.Engine
+    engine : sqlalchemy.engine.base.Engine
         The SQLAlchemy engine used for database interactions.
 
     Methods
     -------
-    read_query(
-        query: str,
-        iter_batches: bool = False,
-        batch_size: Optional[int] = None,
-        schema_overrides: Optional[Dict[str, Any]] = None,
-        infer_schema_length: Optional[int] = 100,
-        execute_options: Optional[Dict[str, Any]] = None
-    ) -> pl.DataFrame:
-        Execute an SQL query with additional options and return the result as a Polars DataFrame.
+    read_query(query: str) -> pl.DataFrame:
+        Execute an SQL query and return the result as a Polars DataFrame.
 
     read_table(name: str) -> pl.DataFrame:
         Read all rows from the specified table into a Polars DataFrame.
@@ -107,76 +102,55 @@ class Connection:
         else:
             self.driver = driver
         
+        conn_str = connection_string(self.database, self.server, self.driver, username, password)
+        
+        self.engine = create_engine(conn_str, echo=False)
+        self.connection_string = str(self.engine.engine.url)
+        try:
+            inspector = inspect(self.engine)
+            print(f"Connection to [{self.server}]:[{self.database}] successful.")
+        except SQLAlchemyError as e:
+            print(f"An error occurred connecting to [{self.server}]:[{self.database}]:", e)
 
-
-
-        # If both username and password are provided, use SQL Authentication
-        if username and password:
-            encoded_password = quote_plus(password)
-            conn_str = (
-        f"mssql+pyodbc://{username}:{encoded_password}@{self.server}/{self.database}"
-        f"?driver={self.driver.replace(' ', '+')}") 
-        else:
-             # Windows Integrated Authentication
-            conn_str = (
-            f"mssql+pyodbc://@{self.server}/{self.database}"
-            f"?trusted_connection=yes"
-            f"&driver={self.driver.replace(' ', '+')}"  # Ensure proper encoding
-        )
-
-        self.connection_string = conn_str
-        self._engine = create_engine(conn_str, echo=False)
-
-    def read_query(self,
-        query: str,
-        iter_batches: bool = False,
-        batch_size: Optional[int] = None,
-        schema_overrides: Optional[Dict[str, Any]] = None,
-        infer_schema_length: Optional[int] = 100,
-        execute_options: Optional[Dict[str, Any]] = None
-    ) -> pl.DataFrame:
+    def read_query(self, query: str) -> pl.DataFrame:
         """
-        Execute an SQL query with additional options and return the result as a Polars DataFrame.
+        Execute a SQL query and return the result as a Polars DataFrame.
+
+        This method provides a simple interface to run SQL queries and retrieve the results
+        as a Polars DataFrame. For advanced functionality, users can directly use
+        `polars.read_database` with the engine attribute.
 
         Parameters
         ----------
         query : str
             The SQL query to execute.
-        iter_batches : bool, default False
-            If True, returns an iterator that yields DataFrame batches.
-        batch_size : int, optional
-            The number of rows per batch when `iter_batches` is True.
-        schema_overrides : dict, optional
-            A dictionary to override inferred schema types. Keys should be column names,
-            and values should be Polars data types.
-        infer_schema_length : int, optional
-            The number of rows to read for inferring schema types. Default is 100.
-        execute_options : dict, optional
-            Additional execution options for the database driver.
 
         Returns
         -------
-        pl.DataFrame or pl.DataFrameIterator
-            The result of the query as a Polars DataFrame, or an iterator of DataFrame batches
-            if `iter_batches` is True.
+        pl.DataFrame
+            The result of the query as a Polars DataFrame.
 
         Raises
         ------
         RuntimeError
             If the query execution fails.
-        """
+
+        Examples
+        --------
+        **Run a simple query and return results as a Polars DataFrame:**
+            query = "SELECT * FROM users"
+            df = conn.read_query(query)
+
+        **Usage with polars.read_database:** You can use pl.read_database.
+            import polars as pl
+            pl.read_database("SELECT * FROM users", connection = conn.engine)
+    """
         try:
-            return pl.read_database(
-                query=query,
-                connection=self._engine,
-                iter_batches=iter_batches,
-                batch_size=batch_size,
-                schema_overrides=schema_overrides,
-                infer_schema_length=infer_schema_length,
-                execute_options=execute_options
-            )
+            # Use polars.read_database with the engine
+            return pl.read_database(query=query, connection=self.engine)
         except Exception as e:
             raise RuntimeError(f"Failed to execute query: {e}") from e
+
 
     def read_table(self, name: str) -> pl.DataFrame:
         """
@@ -229,9 +203,59 @@ class Connection:
                              f"Choose from {valid_options}.")
 
         try:
-            df.write_database(name, connection=self._engine, if_exists=if_exists)
+            df.write_database(name, connection=self.engine, if_exists=if_exists)
         except Exception as e:
             raise RuntimeError(f"Failed to write table '{name}': {e}") from e
+        
+    def execute_query(self, query: str, params: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Execute a SQL query with optional parameterized inputs.
+
+        This method allows users to execute SQL queries securely using parameterized inputs
+        (to prevent accidental SQL injection) while maintaining flexibility for any valid SQL commands.
+
+        Parameters
+        ----------
+        query : str
+            The SQL query to execute. It can include placeholders for parameterized queries
+            (e.g., `:param_name` or `?` depending on your database backend).
+        params : dict, optional
+            A dictionary of parameters to bind to the query for safe execution.
+            The keys in the dictionary should match the placeholders in the query.
+
+        Raises
+        ------
+        RuntimeError
+            If query execution fails due to a database error.
+
+        Examples
+        --------
+        **Insert a new user securely using parameters:**
+            query = "INSERT INTO users (id, name, email) VALUES (:id, :name, :email)"
+            params = {"id": 1, "name": "John Doe", "email": "john.doe@example.com"}
+            connection.execute_query(query, params)
+
+        **Delete a user without using parameters:**
+            query = "DELETE FROM users WHERE id = 1"
+            connection.execute_query(query)
+
+        **Perform a destructive operation (e.g., drop a table):**
+            query = "DROP TABLE users"
+            connection.execute_query(query)
+
+        **Prevent accidental SQL injection:**
+            query = "SELECT * FROM users WHERE name = :name"
+            params = {"name": "John'; DROP TABLE users; --"}
+            connection.execute_query(query, params)
+            # Safely executed as:
+            # SELECT * FROM users WHERE name = 'John''; DROP TABLE users; --'
+        """
+        try:
+            with self.engine.connect() as connection:
+                connection.execute(query, params or {})
+                print("Query executed successfully.")
+        except SQLAlchemyError as e:
+            raise RuntimeError(f"Failed to execute query: {e}") from e
 
     def close(self):
         """
@@ -240,7 +264,7 @@ class Connection:
         This frees up any database-related resources used by the engine.
         """
         try:
-            self._engine.dispose()
+            self.engine.dispose()
             print("Engine disposed and connection closed")
         except Exception as e:
             print(f"Error closing connection: {e}")
@@ -262,3 +286,12 @@ class Connection:
         Exit the runtime context and close the connection.
         """
         self.close()
+
+    def __repr__(self):
+        return f"Connection(database={self.database}, server={self.server}, driver={self.driver})"
+
+    def __str__(self):
+        """
+        Return a user-friendly string representation of the connection, hiding sensitive data.
+        """
+        return f"Connection:\n\tDatabase: {self.database}\n\tServer: {self.server}\n\tDriver: {self.driver}"

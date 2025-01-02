@@ -10,3 +10,5 @@ polars_mssql.egg-info/SOURCES.txt
 polars_mssql.egg-info/dependency_links.txt
 polars_mssql.egg-info/requires.txt
 polars_mssql.egg-info/top_level.txt
+tests/test_connection.py
+tests/test_connection_string.py

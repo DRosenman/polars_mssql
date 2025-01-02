@@ -1,3 +1,4 @@
+
 # polars_mssql
 
 `polars_mssql` is a Python package designed to simplify working with Microsoft SQL Server databases using the high-performance `polars` DataFrame library. It provides an intuitive and efficient interface for running SQL queries, reading tables, and writing data to SQL Server.
@@ -9,7 +10,6 @@
 - **Parameterization Support**: Securely execute parameterized queries to prevent accidental SQL injection.
 - **Table Operations**: Read and write tables with flexibility and performance.
 - **Context Management**: Supports Python's context manager for automatic connection handling.
-
 
 ## Installation
 
@@ -42,7 +42,7 @@ conn = Connection(
 )
 ```
 
-### 2. Running Queries
+### 2. Read Data from SQL Server
 
 #### Execute a SQL Query and Get Results as a DataFrame
 
@@ -87,7 +87,13 @@ conn.write_table(data, name="my_table", if_exists="replace")
 
 ### 4. Execute Queries
 
-The `execute_query` method allows you to run any SQL query on your database. It supports parameterized queries to prevent accidental SQL injection and can be used for both simple and destructive operations like `INSERT`, `DELETE`, or `DROP TABLE`.
+The `execute_query` method allows you to run any SQL query on your database. It supports parameterized queries to prevent accidental SQL injection and can be used for both retrieval and modification operations such as `INSERT`, `DELETE`, and `DROP`.
+
+#### Example: Run a Simple Query
+```python
+query = "DELETE FROM users WHERE id = 1"
+conn.execute_query(query)
+```
 
 #### Example: Insert Data Securely
 ```python
@@ -96,18 +102,19 @@ params = {"id": 1, "name": "John Doe", "email": "john.doe@example.com"}
 conn.execute_query(query, params)
 ```
 
-Example: Drop a Table
+#### Example: Drop a Table
 ```python
 query = "DROP TABLE users"
 conn.execute_query(query)
-Example: Prevent SQL Injection
 ```
 
+#### Example: Prevent SQL Injection
 ```python
 query = "SELECT * FROM users WHERE name = :name"
 params = {"name": "John'; DROP TABLE users; --"}
 conn.execute_query(query, params)
 ```
+This safely executes the query without executing malicious SQL commands.
 
 ### 5. Using Context Management
 
@@ -117,7 +124,7 @@ with Connection(database="my_database", server="my_server") as conn:
     print(df)
 ```
 
-### 5. Closing the Connection
+### 6. Closing the Connection
 
 ```python
 conn.close()
@@ -131,12 +138,6 @@ conn.close()
 ```python
 Connection(database: Optional[str] = None, server: Optional[str] = None, driver: Optional[str] = None, username: Optional[str] = None, password: Optional[str] = None)
 ```
-
-#### Methods
-
-## API Reference
-
-### `Connection` Class
 
 #### Attributes
 
@@ -215,25 +216,28 @@ Connection(database: Optional[str] = None, server: Optional[str] = None, driver:
     - `params` (dict, optional): A dictionary of parameters to bind to the query.
   - **Examples**:
     ```python
-    query = "INSERT INTO users (id, name) VALUES(1, 'Jane')"
+    query = "DELETE FROM users WHERE id = 1"
     conn.execute_query(query)
     ```
+
     ```python
     query = "INSERT INTO users (id, name) VALUES (:id, :name)"
     params = {"id": 1, "name": "Jane"}
     conn.execute_query(query, params)
     ```
+
 - **`close() -> None`**:
-  Closes the SQL server connection
+  Dispose of the SQLAlchemy engine and close the connection.
   - **Example**:
     ```python
-    con.close()
+    conn.close()
     ```
-
 
 ## Requirements
 
-- Python 3.8 or higher
+- Python 3.7 or higher
+- `polars`
+- `sqlalchemy`
 - ODBC Driver for SQL Server (17 or 18 recommended)
 
 ### Installing the ODBC Driver
