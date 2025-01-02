@@ -1,5 +1,6 @@
 import polars as pl
 from sqlalchemy import create_engine, inspect
+from sqlalchemy.sql import text
 from sqlalchemy.exc import SQLAlchemyError
 from .config import get_default_mssql_config
 from .connection_string import connection_string
@@ -252,8 +253,13 @@ class Connection:
         """
         try:
             with self.engine.connect() as connection:
-                connection.execute(query, params or {})
-                print("Query executed successfully.")
+            # Begin a transaction
+                with connection.begin():
+                    if params:
+                        connection.execute(text(query), params or {})
+                    else:
+                        connection.execute(query)
+                    print("Query executed and committed successfully.")
         except SQLAlchemyError as e:
             raise RuntimeError(f"Failed to execute query: {e}") from e
 
