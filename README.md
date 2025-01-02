@@ -5,10 +5,11 @@
 ## Features
 
 - **Seamless SQL Server Integration**: Easily connect to SQL Server with options for Windows Authentication or SQL Authentication.
-- **Query Execution**: Execute SQL queries and retrieve results as `polars.DataFrame` objects.
+- **Query Execution**: Execute SQL queries and retrieve results as `polars.DataFrame` objects. Use `read_query` for simple query execution or `polars.read_database` for advanced functionality like batch processing and schema customization.
+- **Parameterization Support**: Securely execute parameterized queries to prevent accidental SQL injection.
 - **Table Operations**: Read and write tables with flexibility and performance.
 - **Context Management**: Supports Python's context manager for automatic connection handling.
-- **Customizable Options**: Configure schema inference, batch sizes, and execution options.
+
 
 ## Installation
 
@@ -50,13 +51,29 @@ query = "SELECT * FROM my_table WHERE col1 = 'a'"
 df = conn.read_query(query)
 ```
 
+For advanced functionality (e.g., batch processing or schema customization), use the polars.read_database function with the engine:
+
+```python
+import polars as pl
+
+df = pl.read_database(
+    query="SELECT * FROM users",
+    connection=conn.engine,
+    iter_batches=True,
+    batch_size=1000
+)
+
+for batch in df:
+    print(batch)
+```
+
 #### Read an Entire Table
 
 ```python
 df = conn.read_table("my_table")
 ```
 
-### 3. Writing Data to SQL Server
+### 3. Save DataFrame to SQL Server
 
 #### Write a Polars DataFrame to a Table
 
@@ -68,7 +85,31 @@ data = pl.DataFrame({"col1": [1, 2, 3], "col2": ["a", "b", "c"]})
 conn.write_table(data, name="my_table", if_exists="replace")
 ```
 
-### 4. Using Context Management
+### 4. Execute Queries
+
+The `execute_query` method allows you to run any SQL query on your database. It supports parameterized queries to prevent accidental SQL injection and can be used for both simple and destructive operations like `INSERT`, `DELETE`, or `DROP TABLE`.
+
+#### Example: Insert Data Securely
+```python
+query = "INSERT INTO users (id, name, email) VALUES (:id, :name, :email)"
+params = {"id": 1, "name": "John Doe", "email": "john.doe@example.com"}
+conn.execute_query(query, params)
+```
+
+Example: Drop a Table
+```python
+query = "DROP TABLE users"
+conn.execute_query(query)
+Example: Prevent SQL Injection
+```
+
+```python
+query = "SELECT * FROM users WHERE name = :name"
+params = {"name": "John'; DROP TABLE users; --"}
+conn.execute_query(query, params)
+```
+
+### 5. Using Context Management
 
 ```python
 with Connection(database="my_database", server="my_server") as conn:
@@ -93,11 +134,102 @@ Connection(database: Optional[str] = None, server: Optional[str] = None, driver:
 
 #### Methods
 
-- **`read_query(query: str, ...) -> pl.DataFrame`**: Execute a query and return results as a Polars DataFrame.
-- **`read_table(name: str) -> pl.DataFrame`**: Read all rows from a table.
-- **`write_table(df: pl.DataFrame, name: str, ...)`**: Write a Polars DataFrame to a table.
-- **`close()`**: Close the database connection.
-- **Context Management (`__enter__` and `__exit__`)**: Automatically manage connections.
+## API Reference
+
+### `Connection` Class
+
+#### Attributes
+
+- **`database`** (str):
+  The name of the connected database.
+
+- **`server`** (str):
+  The name or address of the SQL Server instance.
+
+- **`driver`** (str):
+  The ODBC driver being used for the connection (e.g., "ODBC Driver 17 for SQL Server").
+
+- **`connection_string`** (str):
+  The full SQLAlchemy connection string used to create the engine. This can be useful for debugging or passing to other tools.
+
+- **`engine`** (`sqlalchemy.engine.base.Engine`):
+  The SQLAlchemy engine used for database interactions. Advanced users can use this attribute for custom SQLAlchemy operations or to pass it to functions like `polars.read_database`.
+
+#### Methods
+
+- **`read_query(query: str) -> pl.DataFrame`**:
+  Execute a query and return results as a Polars DataFrame.
+  - **Parameters:**
+    - `query (str)`: The SQL query to execute.
+  - **Returns**: pl.DataFrame: The result of the query as a Polars DataFrame.
+
+  - **Example**:
+    ```python
+    query = "SELECT * FROM my_table WHERE col1 = 'a'"
+    df = conn.read_query(query)
+    print(df)
+    ```
+
+- **`read_table(name: str) -> pl.DataFrame`**:
+  Read all rows from a table.
+  - **Parameters:**
+    - `name (str)`: The name of the table to read from.
+  - **Returns**: pl.DataFrame: All rows from the specified table as a Polars DataFrame.
+
+  - **Example**:
+    ```python
+    df = conn.read_table('my_table')
+    print(df)
+    ```
+
+- **`write_table(df: pl.DataFrame, name: str, if_exists: str = "fail") -> None`**:
+  Save a Polars DataFrame to a specified table in SQL Server.
+  - **Parameters**:
+    - `df` (pl.DataFrame): The Polars DataFrame to be written.
+    - `name` (str): The name of the target table in the database.
+    - `if_exists` (str): What to do if the target table already exists. Options:
+      - `'fail'` (default): Raise an error.
+      - `'append'`: Append the data to the existing table.
+      - `'replace'`: Drop the existing table, recreate it, and insert the data.
+  - **Raises**:
+    - `ValueError`: If `if_exists` is not one of `'fail'`, `'append'`, or `'replace'`.
+    - `RuntimeError`: If the write operation fails.
+  - **Examples**:
+    ```python
+    import polars as pl
+
+    # Create a Polars DataFrame
+    df = pl.DataFrame({
+        "id": [1, 2, 3],
+        "name": ["Alice", "Bob", "Charlie"]
+    })
+
+    # Write the DataFrame to the database
+    conn.write_table(df, name="users", if_exists="replace")
+    ```
+
+- **`execute_query(query: str, params: Optional[Dict[str, Any]] = None) -> None`**:
+  Execute any SQL query. Supports parameterized queries to prevent SQL injection.
+  - **Parameters**:
+    - `query` (str): The SQL query to execute. Can include placeholders for parameterized queries (e.g., `:param_name`).
+    - `params` (dict, optional): A dictionary of parameters to bind to the query.
+  - **Examples**:
+    ```python
+    query = "INSERT INTO users (id, name) VALUES(1, 'Jane')"
+    conn.execute_query(query)
+    ```
+    ```python
+    query = "INSERT INTO users (id, name) VALUES (:id, :name)"
+    params = {"id": 1, "name": "Jane"}
+    conn.execute_query(query, params)
+    ```
+- **`close() -> None`**:
+  Closes the SQL server connection
+  - **Example**:
+    ```python
+    con.close()
+    ```
+
 
 ## Requirements
 
