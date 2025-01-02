@@ -17,7 +17,7 @@ def read_requirements(filename):
 
 setup(
     name="polars_mssql",  
-    version="0.3",  
+    version="0.3.1",  
     author="Dave Rosenman",
     author_email="daverosenman@gmail.com",
     description="Effortlessly connect to SQL Server to import data into Polars DataFrames and export data back to SQL Server.",
