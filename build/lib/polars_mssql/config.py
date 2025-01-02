@@ -1,23 +1,23 @@
 # polars_mssql/config.py
 
 _default_config = {
-    "driver": None,          # e.g., "ODBC Driver 17 for SQL Server"
+    "driver": 'SQL Server',          # e.g., "ODBC Driver 17 for SQL Server"
     "server": None,
     "database": None,
 }
 
 
 def set_default_mssql_config(
-    driver: str = None,
     server: str = None,
-    database: str = None
+    database: str = None,
+    driver: str = 'SQL Server'
 ):
     """
     Set or update the default Microsoft SQL Server configuration.
     
-    :param driver: e.g., 'ODBC Driver 17 for SQL Server'
     :param server: Server address or hostname
     :param database: Default database name to connect to
+    :param driver: e.g., 'ODBC Driver 17 for SQL Server'
     """
     global _default_config
 

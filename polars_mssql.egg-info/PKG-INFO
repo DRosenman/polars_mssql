@@ -58,11 +58,14 @@ from polars_mssql import Connection
 
 # Initialize a connection
 conn = Connection(
+  server="my_server",
     database="my_database",
-    server="my_server",
-    driver = 'ODBC Driver 17 for SQL Server'
+    # If not specified, driver defaults to "SQL Server"
+    # driver = 'ODBC Driver 17 for SQL Server'
 )
 ```
+**Driver Defaults**
+By default, the driver parameter is set to `"SQL Server"`, which often comes preinstalled on Windows. If you don't have `"SQL Server"` installed or prefer a more recent driver, specify any compatible driver you have installed (e.g., `"ODBC Driver 17 for SQL Server"`) for the database you are trying to connect to. 
 
 ### 2. Read Data from SQL Server
 
@@ -141,7 +144,7 @@ This safely executes the query without executing malicious SQL commands.
 ### 5. Using Context Management
 
 ```python
-with Connection(database="my_database", server="my_server") as conn:
+with Connection(server="my_server", database="my_database") as conn:
     df = conn.read_query("SELECT * FROM my_table")
     print(df)
 ```
@@ -158,16 +161,16 @@ conn.close()
 
 #### Constructor
 ```python
-Connection(database: Optional[str] = None, server: Optional[str] = None, driver: Optional[str] = None, username: Optional[str] = None, password: Optional[str] = None)
+Connection(server: Optional[str] = None, database: Optional[str] = None, driver: Optional[str] = None, username: Optional[str] = None, password: Optional[str] = None)
 ```
 
 #### Attributes
 
-- **`database`** (str):
-  The name of the connected database.
-
 - **`server`** (str):
   The name or address of the SQL Server instance.
+
+  - **`database`** (str):
+  The name of the connected database.
 
 - **`driver`** (str):
   The ODBC driver being used for the connection (e.g., "ODBC Driver 17 for SQL Server").

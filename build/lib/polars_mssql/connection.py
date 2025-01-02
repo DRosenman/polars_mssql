@@ -20,12 +20,12 @@ class Connection:
 
     Parameters
     ----------
-    database : str, optional
-        Name of the database to connect to. If not provided, will use the default from `get_default_mssql_config()`.
     server : str, optional
         Name or address of the SQL Server. If not provided, will use the default from `get_default_mssql_config()`.
+    database : str, optional
+        Name of the database to connect to. If not provided, will use the default from `get_default_mssql_config()`.
     driver : str, optional
-        ODBC driver to use (e.g., "ODBC Driver 17 for SQL Server"). If not provided, 
+        ODBC driver to use. Defaults to "SQL Server", which often works out of the box on Windows for older or generic SQL Server environments. If you do not have 'SQL Server' installed or require better performance and newer feature (e.g., improved TLS support), consider specifying a more modern driver such as "ODBC Driver 17 for SQL Server" (or any other version compatible with your database and environment).  If None, 
         uses the default from `get_default_mssql_config()`.
     username : str, optional
         SQL Server login name. If both `username` and `password` are provided, SQL authentication is used.
@@ -34,10 +34,10 @@ class Connection:
 
     Attributes
     ----------
-    database : str
-        The database name in use.
     server : str
         The server name in use.
+    database : str
+        The database name in use.
     connection_string : str
         The SQLAlchemy connection string built from the provided parameters.
     engine : sqlalchemy.engine.base.Engine
@@ -54,6 +54,9 @@ class Connection:
     write_table(df: pl.DataFrame, name: str, if_exists: str = "fail"):
         Save a Polars DataFrame to a SQL Server table.
 
+    execute_query(query: str, params:  Optional[Dict[str, Any]] = None) -> None:
+        Executes SQL statements (including transactional modifications) with optional parameterization. Automatically commits changes if successful; does not return anything.
+
     close():
         Dispose of the SQLAlchemy engine and close the connection.
 
@@ -66,9 +69,9 @@ class Connection:
 
     def __init__(
         self,
-        database: Optional[str] = None,
         server: Optional[str] = None,
-        driver: Optional[str] = None,
+        database: Optional[str] = None,
+        driver: Optional[str] = 'SQL Server',
         username: Optional[str] = None,
         password: Optional[str] = None,
     ):
@@ -229,6 +232,11 @@ class Connection:
         RuntimeError
             If query execution fails due to a database error.
 
+        Returns
+        ------
+        None
+            This method does not return anything. It commits the transaction automatically if successful.
+
         Examples
         --------
         **Insert a new user securely using parameters:**
@@ -294,10 +302,10 @@ class Connection:
         self.close()
 
     def __repr__(self):
-        return f"Connection(database={self.database}, server={self.server}, driver={self.driver})"
+        return f"Connection(server={self.server}, database={self.database}, driver={self.driver})"
 
     def __str__(self):
         """
         Return a user-friendly string representation of the connection, hiding sensitive data.
         """
-        return f"Connection:\n\tDatabase: {self.database}\n\tServer: {self.server}\n\tDriver: {self.driver}"
+        return f"Connection:\n\tServer: {self.server}\n\tDatabase: {self.database}\n\tDriver: {self.driver}"
