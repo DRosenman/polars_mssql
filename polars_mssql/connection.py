@@ -1,6 +1,8 @@
 import polars as pl
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
+from sqlalchemy.exc import SQLAlchemyError
 from .config import get_default_mssql_config
+from .connection_string import connection_string
 from typing import Any, Dict, Optional, Union
 from urllib.parse import quote_plus
 
@@ -107,27 +109,15 @@ class Connection:
         else:
             self.driver = driver
         
-
-
-
-        # If both username and password are provided, use SQL Authentication
-        if username and password:
-            encoded_password = quote_plus(password)
-            conn_str = (
-        f"mssql+pyodbc://{username}:{encoded_password}@{self.server}/{self.database}"
-        f"?driver={self.driver.replace(' ', '+')}") 
-        else:
-             # Windows Integrated Authentication
-            conn_str = (
-            f"mssql+pyodbc://@{self.server}/{self.database}"
-            f"?trusted_connection=yes"
-            f"&driver={self.driver.replace(' ', '+')}"  # Ensure proper encoding
-        )
-
-        self.connection_string = conn_str
+        conn_str = connection_string(self.database, self.server, self.driver, username, password)
+        
         self._engine = create_engine(conn_str, echo=False)
-        if username and password:
-            self.connection_string = conn_str.replace(f":{encoded_password}", ":<hidden>")
+        self.connection_string = str(self._engine.engine.url)
+        try:
+            inspector = inspect(self._engine)
+            print(f"Connection to [{self.server}]:[{self.database}] successful.")
+        except SQLAlchemyError as e:
+            print(f"An error occurred connecting to [{self.server}]:[{self.database}]:", e)
 
     def read_query(self,
         query: str,

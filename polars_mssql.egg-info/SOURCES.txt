@@ -4,6 +4,7 @@ setup.py
 polars_mssql/__init__.py
 polars_mssql/config.py
 polars_mssql/connection.py
+polars_mssql/connection_string.py
 polars_mssql.egg-info/PKG-INFO
 polars_mssql.egg-info/SOURCES.txt
 polars_mssql.egg-info/dependency_links.txt
