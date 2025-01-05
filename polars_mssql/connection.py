@@ -207,7 +207,7 @@ class Connection:
                              f"Choose from {valid_options}.")
 
         try:
-            df.write_database(name, connection=self.engine, if_exists=if_exists)
+            df.write_database(name, connection=self.engine, if_table_exists=if_exists)
         except Exception as e:
             raise RuntimeError(f"Failed to write table '{name}': {e}") from e
         
