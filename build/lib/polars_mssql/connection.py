@@ -6,6 +6,7 @@ from .config import get_default_mssql_config
 from .connection_string import connection_string
 from typing import Any, Dict, Optional, Union
 from urllib.parse import quote_plus
+import warnings
 
 class Connection:
     """
@@ -110,11 +111,42 @@ class Connection:
         
         self.engine = create_engine(conn_str, echo=False)
         self.connection_string = str(self.engine.engine.url)
+        self.outdated_drivers = ['sql server', 'sql+server']
         try:
             inspector = inspect(self.engine)
             print(f"Connection to [{self.server}]:[{self.database}] successful.")
+            if self.driver.lower() in self.outdated_drivers:
+                def custom_warning_format(message, category, filename, lineno, file=None, line=None):
+                    return f"{category.__name__}: {message}\n"
+
+        # Apply the custom formatter
+                warnings.formatwarning = custom_warning_format
+                warnings.warn(
+                "You are using the outdated 'SQL Server' driver.\n"
+                "It is recommended to use 'ODBC Driver 17 for SQL Server' or a newer driver "
+                "for better compatibility and performance.",
+                UserWarning
+                )
         except SQLAlchemyError as e:
             print(f"An error occurred connecting to [{self.server}]:[{self.database}]:", e)
+
+        self._closed = False
+
+
+    def _ensure_connection_open(self):
+        """
+        Vertify that the connection is open.
+
+        Raises
+        ------
+        RuntimeError
+            If the connection has been closed.
+        """
+        if self._closed:
+            raise RuntimeError(
+                "This connection has been closed\n"
+                "Please create a new Connection object."
+            )
 
     def read_query(self, query: str) -> pl.DataFrame:
         """
@@ -149,6 +181,7 @@ class Connection:
             import polars as pl
             pl.read_database("SELECT * FROM users", connection = conn.engine)
     """
+        self._ensure_connection_open()
         try:
             # Use polars.read_database with the engine
             return pl.read_database(query=query, connection=self.engine)
@@ -175,6 +208,7 @@ class Connection:
         RuntimeError
             If the query execution fails.
         """
+        self._ensure_connection_open()
         query = f"SELECT * FROM {name}"
         return self.read_query(query)
 
@@ -201,6 +235,7 @@ class Connection:
         RuntimeError
             If the write operation fails.
         """
+        self._ensure_connection_open()
         valid_options = {"fail", "append", "replace"}
         if if_exists not in valid_options:
             raise ValueError(f"Invalid option for if_exists: '{if_exists}'. "
@@ -209,7 +244,22 @@ class Connection:
         try:
             df.write_database(name, connection=self.engine, if_table_exists=if_exists)
         except Exception as e:
-            raise RuntimeError(f"Failed to write table '{name}': {e}") from e
+            if self.driver.lower() in self.outdated_drivers:
+                driver_warning = (
+                "\n\nThis error may be caused by using the outdated 'SQL Server' driver. "
+                "Consider updating your connection string to use "
+                "'ODBC Driver 17 for SQL Server' or a newer driver."
+            )
+            else:
+                driver_warning = ""
+
+            error_message = (
+            f"Error in writing table '{name}':"
+            f"\n{str(e).splitlines()[0]}{driver_warning}"
+            f"\n{'-'*50}\n"  # Separator for readability
+        )
+            
+            raise RuntimeError(error_message) from e
         
     def execute_query(self, query: str, params: Optional[Dict[str, Any]] = None) -> None:
         """
@@ -259,6 +309,7 @@ class Connection:
             # Safely executed as:
             # SELECT * FROM users WHERE name = 'John''; DROP TABLE users; --'
         """
+        self._ensure_connection_open()
         try:
             with self.engine.connect() as connection:
             # Begin a transaction
@@ -277,17 +328,22 @@ class Connection:
 
         This frees up any database-related resources used by the engine.
         """
-        try:
-            self.engine.dispose()
-            print("Engine disposed and connection closed")
-        except Exception as e:
-            print(f"Error closing connection: {e}")
+        if not self._closed:
+            try:
+                self.engine.dispose()
+                self._closed = True
+                print("Engine disposed and connection closed")
+            except Exception as e:
+                print(f"Error closing connection: {e}")
+        else:
+            print("Connection already closed.")
 
     def __del__(self):
         """
         Destructor that disposes of the engine if not already closed.
         """
-        self.close()
+        if hasattr(self, "engine"):
+            self.engine.dispose()
 
     def __enter__(self):
         """
@@ -302,10 +358,12 @@ class Connection:
         self.close()
 
     def __repr__(self):
-        return f"Connection(server={self.server}, database={self.database}, driver={self.driver})"
+        state = "closed" if self._closed else "Open"
+        return f"Connection(server={self.server}, database={self.database}, driver={self.driver}, state={state})"
 
     def __str__(self):
         """
         Return a user-friendly string representation of the connection, hiding sensitive data.
         """
-        return f"Connection:\n\tServer: {self.server}\n\tDatabase: {self.database}\n\tDriver: {self.driver}"
+        state = "closed" if self._closed else "Open"
+        return f"Connection:\n\tServer: {self.server}\n\tDatabase: {self.database}\n\tDriver: {self.driver}\n\tState: {state}"

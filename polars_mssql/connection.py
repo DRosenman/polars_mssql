@@ -111,23 +111,25 @@ class Connection:
         
         self.engine = create_engine(conn_str, echo=False)
         self.connection_string = str(self.engine.engine.url)
+        self.outdated_drivers = ['sql server', 'sql+server']
         try:
             inspector = inspect(self.engine)
             print(f"Connection to [{self.server}]:[{self.database}] successful.")
-        except SQLAlchemyError as e:
-            print(f"An error occurred connecting to [{self.server}]:[{self.database}]:", e)
-        if 'sql+server' in str(self.engine.url).lower():
-            def custom_warning_format(message, category, filename, lineno, file=None, line=None):
-                return f"{category.__name__}: {message}\n"
+            if self.driver.lower() in self.outdated_drivers:
+                def custom_warning_format(message, category, filename, lineno, file=None, line=None):
+                    return f"{category.__name__}: {message}\n"
 
         # Apply the custom formatter
-            warnings.formatwarning = custom_warning_format
-            warnings.warn(
+                warnings.formatwarning = custom_warning_format
+                warnings.warn(
                 "You are using the outdated 'SQL Server' driver.\n"
                 "It is recommended to use 'ODBC Driver 17 for SQL Server' or a newer driver "
                 "for better compatibility and performance.",
                 UserWarning
-            )
+                )
+        except SQLAlchemyError as e:
+            print(f"An error occurred connecting to [{self.server}]:[{self.database}]:", e)
+
         self._closed = False
 
 
@@ -242,10 +244,9 @@ class Connection:
         try:
             df.write_database(name, connection=self.engine, if_table_exists=if_exists)
         except Exception as e:
-            
-            if 'sql+server' in str(self.engine.url).lower():
+            if self.driver.lower() in self.outdated_drivers:
                 driver_warning = (
-                " This error may be caused by using the outdated 'SQL Server' driver. "
+                "\n\nThis error may be caused by using the outdated 'SQL Server' driver. "
                 "Consider updating your connection string to use "
                 "'ODBC Driver 17 for SQL Server' or a newer driver."
             )
