@@ -317,7 +317,7 @@ class Connection:
                     if params:
                         connection.execute(text(query), params or {})
                     else:
-                        connection.execute(query)
+                        connection.execute(text(query))
                     print("Query executed and committed successfully.")
         except SQLAlchemyError as e:
             raise RuntimeError(f"Failed to execute query: {e}") from e
